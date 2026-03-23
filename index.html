@@ -2,444 +2,1081 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Easy Files - Universal Converter</title>
-    <meta name="description" content="Convert images to PNG and audio to MP3 format easily">
-    <link rel="icon" href="favicon.webp" type="image/webp">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EasyFiles - Universal File Converter</title>
+  <meta name="description"
+    content="Convert images, audio, video and PDFs directly in your browser. No uploads, no servers, 100% private.">
+  <link rel="icon" href="favicon.webp" type="image/webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
 
-        body {
-            background-color: #000000;
-            color: #ffffff;
-            min-height: 100svh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
+  <!-- FFmpeg.wasm v0.11 — single file, no dynamic chunk loading -->
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+  <!-- HEIC support -->
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- JSZip -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
-        .container {
-            text-align: center;
-            padding: 2rem;
-            width: 100%;
-            max-width: 1200px;
-        }
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-        }
+    :root {
+      --success: #4CAF50;
+      --error: #ff5555;
+      --accent-light: #ffffff;
+    }
 
-        p {
-            color: #888888;
-        }
+    html {
+      scroll-behavior: smooth;
+    }
 
-        .content-wrapper {
-            display: flex;
-            flex-direction: column;
-            gap: 2rem;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #000000;
+      color: #ffffff;
+      min-height: 100svh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem 4rem;
+    }
 
-        .drop-zone {
-            width: 300px;
-            height: 200px;
-            border: 2px solid #ffffff;
-            border-radius: 10px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin: 0 auto;
-        }
+    .header {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
 
-        .drop-zone.dragover {
-            background-color: rgba(255, 255, 255, 0.1);
-            border-style: dashed;
-        }
+    .logo {
+      font-size: 2.5rem;
+      font-weight: 600;
+    }
 
-        .drop-zone input {
-            display: none;
-        }
+    .tagline {
+      color: #888;
+      font-size: 0.85rem;
+      margin-top: 0.3rem;
+    }
 
-        .preview-container {
-            flex: 1;
-            min-width: 300px;
-            max-width: 600px;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            max-height: 30vh;
-            overflow-y: auto;
-            margin: auto;
-        }
+    .app {
+      max-width: 1200px;
+    }
 
-        .preview-item {
-            display: flex;
-            align-items: center;
-            margin: 1rem 5px;
-            padding: 1rem;
-            background: #1a1a1a;
-            border-radius: 10px;
-            gap: 15px;
-        }
+    .ffmpeg-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      color: #888;
+      margin-bottom: 1rem;
+      justify-content: center;
+      transition: opacity 0.5s ease;
+    }
 
-        .preview-image {
-            width: 100px;
-            height: 100px;
-            object-fit: cover;
-            border-radius: 5px;
-        }
+    .ffmpeg-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #ffffff;
+      animation: blink 1.4s ease-in-out infinite;
+    }
 
-        .preview-info {
-            flex-grow: 1;
-            margin: 0 1rem;
-        }
+    @keyframes blink {
 
-        .preview-name {
-            font-size: 1rem;
-            margin-bottom: 0.5rem;
-        }
+      0%,
+      100% {
+        opacity: 1
+      }
 
-        .preview-size {
-            font-size: 0.8rem;
-            color: #888;
-        }
+      50% {
+        opacity: 0.2
+      }
+    }
 
-        .download-btn {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 0.5rem 1rem;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
+    .ffmpeg-status.ready {
+      color: var(--success);
+    }
 
-        .download-btn:hover {
-            background: #45a049;
-        }
+    .ffmpeg-status.ready .ffmpeg-dot {
+      background: var(--success);
+      animation: none;
+    }
 
-        .preview-item img {
-            width: 100px;
-            max-width: 100px;
-            max-height: 100px;
-            border-radius: 5px;
-        }
+    .ffmpeg-status.error {
+      color: var(--error);
+    }
 
-        .download-btn {
-            background-color: #000000;
-            color: #ffffff;
-            border: 2px solid #ffffff;
-            padding: 0.8rem 1.5rem;
-            cursor: pointer;
-            font-size: 1rem;
-            border-radius: 1rem;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            white-space: nowrap;
-            max-width: 135px;
-        }
+    .ffmpeg-status.error .ffmpeg-dot {
+      background: var(--error);
+      animation: none;
+    }
 
-        .download-btn:hover {
-            background-color: #ffffff;
-            color: #000000;
-        }
+    .drop-zone {
+      border: 2px dashed #ffffff;
+      border-radius: 10px;
+      padding: 2.5rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.3s ease, border-style 0.2s;
+      margin-bottom: 2rem;
+    }
 
-        .preview-details {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            text-align: left;
-        }
+    .drop-zone:hover,
+    .drop-zone.dragover {
+      background-color: rgba(255, 255, 255, 0.05);
+    }
 
-        .file-name {
-            margin-bottom: 0.5rem;
-            word-break: break-all;
-        }
+    .drop-zone.dragover {
+      border-style: solid;
+    }
 
-        .preview-container::-webkit-scrollbar {
-            width: 8px;
-        }
+    .drop-zone input[type="file"] {
+      display: none;
+    }
 
-        .preview-container::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
-        }
+    .drop-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+    }
 
-        .preview-container::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 4px;
-        }
+    .drop-sub {
+      font-size: 0.82rem;
+      color: #888;
+    }
 
-        .preview-container::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.4);
-        }
+    .format-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      margin-top: 1rem;
+    }
 
-        .format-badge {
-            display: inline-block;
-            background: #333;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            margin: 0.5rem;
-            font-size: 0.9rem;
-        }
+    .chip {
+      font-size: 0.72rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: #1a1a1a;
+      color: #888;
+      border: 1px solid #333;
+    }
 
-        .supported-formats {
-            margin: 1rem 0;
-        }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
+    .queue {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .file-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #1a1a1a;
+      border-radius: 10px;
+      padding: 1rem;
+      transition: opacity 0.2s, transform 0.2s;
+      animation: fadeUp 0.3s ease both;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(6px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    .file-card.dragging {
+      opacity: 0.35;
+    }
+
+    .file-card.drag-over-top {
+      border-top: 2px solid #ffffff;
+    }
+
+    .file-card.drag-over-bottom {
+      border-bottom: 2px solid #ffffff;
+    }
+
+    .file-card.error {
+      border: 1px solid var(--error);
+    }
+
+    .drag-handle {
+      color: #555;
+      cursor: grab;
+      padding: 4px 2px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      font-size: 1rem;
+      line-height: 1;
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    .file-card:hover .drag-handle {
+      opacity: 1;
+    }
+
+    .drag-handle:active {
+      cursor: grabbing;
+    }
+
+    .thumb-wrap {
+      width: 60px;
+      height: 60px;
+      flex-shrink: 0;
+      border-radius: 5px;
+      overflow: hidden;
+      background: #111;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .thumb-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .thumb-icon {
+      font-size: 1.6rem;
+    }
+
+    .file-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .file-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .file-meta {
+      font-size: 0.75rem;
+      color: #888;
+      margin-top: 3px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+
+    .converted-size {
+      color: var(--success) !important;
+    }
+
+    .error-msg {
+      color: var(--error);
+      font-size: 0.72rem;
+      margin-top: 2px;
+    }
+
+    .format-select {
+      background: #000;
+      border: 2px solid #ffffff;
+      color: #ffffff;
+      border-radius: 1rem;
+      padding: 0.4rem 1.8rem 0.4rem 0.8rem;
+      font-size: 0.8rem;
+      font-family: 'Poppins', sans-serif;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+
+    .format-select:hover {
+      background-color: rgba(255, 255, 255, 0.08);
+    }
+
+    .format-select:focus {
+      outline: none;
+    }
+
+    .progress-wrap {
+      position: relative;
+      width: 52px;
+      height: 52px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .progress-ring {
+      position: absolute;
+      transform: rotate(-90deg);
+    }
+
+    .ring-track {
+      fill: none;
+      stroke: #333;
+      stroke-width: 3;
+    }
+
+    .ring-fill {
+      fill: none;
+      stroke: #ffffff;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-dasharray: 113.1;
+      stroke-dashoffset: 113.1;
+      transition: stroke-dashoffset 0.35s ease, stroke 0.4s ease;
+    }
+
+    .ring-fill.complete {
+      stroke: var(--success);
+    }
+
+    .progress-label {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.58rem;
+      font-weight: 600;
+      color: #888;
+      pointer-events: none;
+    }
+
+    .checkmark-wrap {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+
+    .checkmark-wrap.show {
+      opacity: 1;
+    }
+
+    .checkmark-path {
+      fill: none;
+      stroke: var(--success);
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 30;
+      stroke-dashoffset: 30;
+      transition: stroke-dashoffset 0.45s cubic-bezier(.4, 0, .2, 1) 0.1s;
+    }
+
+    .checkmark-wrap.show .checkmark-path {
+      stroke-dashoffset: 0;
+    }
+
+    .btn-remove {
+      background: none;
+      border: none;
+      color: #555;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      line-height: 1;
+      opacity: 0;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .file-card:hover .btn-remove {
+      opacity: 1;
+    }
+
+    .btn-remove:hover {
+      color: var(--error);
+      background: rgba(255, 85, 85, 0.1);
+    }
+
+    .btn-download {
+      background-color: #000000;
+      color: #ffffff;
+      border: 2px solid #ffffff;
+      padding: 0.6rem 1.2rem;
+      cursor: not-allowed;
+      font-size: 0.85rem;
+      font-family: 'Poppins', sans-serif;
+      border-radius: 1rem;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+      opacity: 0.45;
+      pointer-events: none;
+      display: inline-block;
+    }
+
+    .btn-download.ready {
+      opacity: 1;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    .btn-download.ready:hover {
+      background-color: #ffffff;
+      color: #000000;
+    }
+
+    .btn-download.failed {
+      border-color: var(--error);
+      color: var(--error);
+      opacity: 0.7;
+    }
+
+    .batch-area {
+      margin-top: 1.5rem;
+      text-align: center;
+      animation: fadeUp 0.4s ease;
+    }
+
+    .btn-zip {
+      background-color: #000000;
+      color: #ffffff;
+      border: 2px solid #ffffff;
+      padding: 0.8rem 2rem;
+      font-size: 1rem;
+      font-family: 'Poppins', sans-serif;
+      border-radius: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .btn-zip:hover {
+      background-color: #ffffff;
+      color: #000000;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #111;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 3px;
+    }
+
+    @media (max-width: 540px) {
+      .drag-handle {
+        display: none;
+      }
+
+      .format-select {
+        font-size: 0.72rem;
+      }
+
+      .file-name {
+        font-size: 0.85rem;
+      }
+    }
+  </style>
 </head>
 
 <body>
-    <div class="container">
-        <h1>Easy Files</h1>
-        <div class="supported-formats">
-            <span class="format-badge">Images → PNG</span>
-            <span class="format-badge">Audio → MP3</span>
-        </div>
-        <div class="content-wrapper">
-            <div class="drop-zone" id="drop-zone">
-                <p>Click or drag files here</p>
-                <input type="file" id="file-input" accept="image/*,audio/*" multiple>
-            </div>
-            <div class="preview-container" id="preview-container">
-            </div>
-        </div>
+  <header class="header">
+    <div class="logo">EasyFiles</div>
+    <p class="tagline">Convert anything. No uploads. 100% private.</p>
+  </header>
+
+  <main class="app">
+    <div class="ffmpeg-status" id="ffmpeg-status">
+      <div class="ffmpeg-dot"></div>
+      <span id="ffmpeg-text">Loading FFmpeg engine…</span>
     </div>
 
-    <script>
-        const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('file-input');
-        const previewContainer = document.getElementById('preview-container');
+    <div class="drop-zone" id="drop-zone">
+      <div class="drop-title">Drop files here or click to browse</div>
+      <div class="drop-sub">Images · Audio · Video · HEIC · PDF — all converted in your browser</div>
+      <div class="format-chips">
+        <span class="chip">HEIC → PNG</span>
+        <span class="chip">WAV → MP3</span>
+        <span class="chip">MP4 → GIF</span>
+        <span class="chip">PDF → PNG</span>
+        <span class="chip">SVG → PNG</span>
+        <span class="chip">WebP → JPEG</span>
+        <span class="chip">MP4 → MP3</span>
+        <span class="chip">+ more</span>
+      </div>
+      <input type="file" id="file-input" accept="image/*,audio/*,video/*,application/pdf,.heic,.heif" multiple>
+    </div>
 
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, preventDefaults, false);
+    <div class="queue" id="queue"></div>
+    <div id="batch-area"></div>
+  </main>
+
+  <script>
+    /* jshint esversion: 9 */
+    const RING_R = 18;
+    const RING_CIRC = 2 * Math.PI * RING_R;
+
+    const IMG_FMTS = ['PNG', 'JPEG', 'WEBP', 'ICO'];
+    const AUDIO_FMTS = ['MP3', 'WAV', 'OGG'];
+    const VIDEO_FMTS = ['MP3', 'MP4', 'GIF'];
+
+    let jobs = [];
+    let jobIdCounter = 0;
+    let ffmpegReady = false;
+    let ffmpegInst = null;
+    let ffmpegBusy = false;
+    const ffmpegQ = [];
+
+    // ── FFmpeg (v0.11 API) ───────────────────────────────────
+    async function initFFmpeg() {
+      try {
+        var createFFmpeg = window.FFmpeg.createFFmpeg;
+        ffmpegInst = createFFmpeg({
+          corePath: 'https://unpkg.com/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js',
+          mainName: 'main',
+          log: false,
         });
+        await ffmpegInst.load();
+        ffmpegReady = true;
+        setFFmpegStatus('ready', 'FFmpeg ready');
+        setTimeout(function () {
+          var el = document.getElementById('ffmpeg-status');
+          if (el) { el.style.opacity = '0'; el.style.pointerEvents = 'none'; }
+        }, 2500);
+        drainFFmpegQueue();
+      } catch (e) {
+        console.error('FFmpeg load error:', e);
+        setFFmpegStatus('error', 'FFmpeg unavailable — audio/video disabled');
+        ffmpegQ.forEach(function (item) { item.reject(new Error('FFmpeg failed to load')); });
+        ffmpegQ.length = 0;
+      }
+    }
 
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
+    function setFFmpegStatus(cls, msg) {
+      var el = document.getElementById('ffmpeg-status');
+      var span = document.getElementById('ffmpeg-text');
+      el.className = 'ffmpeg-status ' + cls;
+      span.textContent = msg;
+    }
 
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, highlight, false);
+    function enqueueFFmpeg(run) {
+      return new Promise(function (resolve, reject) {
+        ffmpegQ.push({ run: run, resolve: resolve, reject: reject });
+        drainFFmpegQueue();
+      });
+    }
+
+    async function drainFFmpegQueue() {
+      if (ffmpegBusy || !ffmpegReady || ffmpegQ.length === 0) return;
+      ffmpegBusy = true;
+      var item = ffmpegQ.shift();
+      try { item.resolve(await item.run()); }
+      catch (e) { item.reject(e); }
+      finally { ffmpegBusy = false; drainFFmpegQueue(); }
+    }
+
+    // ── Helpers ─────────────────────────────────────────────
+    function fmtSize(bytes) {
+      if (bytes == null) return '';
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+    }
+
+    function getCategory(file) {
+      var ext = file.name.split('.').pop().toLowerCase();
+      if (ext === 'heic' || ext === 'heif') return 'heic';
+      if (file.type === 'application/pdf') return 'pdf';
+      if (file.type.startsWith('image/')) return 'image';
+      if (file.type.startsWith('audio/')) return 'audio';
+      if (file.type.startsWith('video/')) return 'video';
+      return null;
+    }
+
+    function defaultFmt(cat) {
+      if (cat === 'image' || cat === 'heic' || cat === 'pdf') return 'PNG';
+      if (cat === 'audio') return 'MP3';
+      if (cat === 'video') return 'MP3';
+      return 'PNG';
+    }
+
+    function formatOptions(cat) {
+      if (cat === 'image' || cat === 'heic' || cat === 'pdf') return IMG_FMTS;
+      if (cat === 'audio') return AUDIO_FMTS;
+      if (cat === 'video') return VIDEO_FMTS;
+      return IMG_FMTS;
+    }
+
+    function fileExt(fmt) { return fmt.toLowerCase(); }
+
+    // ── Job creation ─────────────────────────────────────────
+    function createJob(file) {
+      var cat = getCategory(file);
+      return {
+        id: ++jobIdCounter,
+        file: file,
+        cat: cat,
+        fmt: defaultFmt(cat),
+        status: 'pending',
+        progress: 0,
+        outputBlob: null,
+        outputUrl: null,
+        element: null,
+      };
+    }
+
+    // ── Render card ──────────────────────────────────────────
+    function renderJob(job) {
+      var card = document.createElement('div');
+      card.className = 'file-card';
+      card.dataset.id = job.id;
+      card.draggable = true;
+
+      var baseName = job.file.name.replace(/\.[^/.]+$/, '');
+      var opts = formatOptions(job.cat).map(function (f) {
+        return '<option value="' + f + '"' + (f === job.fmt ? ' selected' : '') + '>' + f + '</option>';
+      }).join('');
+
+      var iconMap = { audio: '🎵', video: '🎬', pdf: '📄', heic: '🖼' };
+      var icon = iconMap[job.cat] || '';
+      var isImg = job.cat === 'image' || job.cat === 'heic';
+      var thumbHTML = isImg
+        ? '<img id="thumb-img-' + job.id + '" alt="">'
+        : '<div class="thumb-icon">' + icon + '</div>';
+
+      card.innerHTML =
+        '<span class="drag-handle" title="Reorder">⠿</span>' +
+        '<div class="thumb-wrap">' + thumbHTML + '</div>' +
+        '<div class="file-info">' +
+        '<div class="file-name" title="' + job.file.name + '">' + baseName + '</div>' +
+        '<div class="file-meta" id="meta-' + job.id + '"><span>' + fmtSize(job.file.size) + '</span></div>' +
+        '</div>' +
+        '<select class="format-select" id="fmt-' + job.id + '">' + opts + '</select>' +
+        '<div class="progress-wrap">' +
+        '<svg class="progress-ring" width="44" height="44" viewBox="0 0 44 44">' +
+        '<circle class="ring-track" cx="22" cy="22" r="' + RING_R + '"/>' +
+        '<circle class="ring-fill" id="ring-' + job.id + '" cx="22" cy="22" r="' + RING_R + '"' +
+        ' stroke-dasharray="' + RING_CIRC.toFixed(1) + '"' +
+        ' stroke-dashoffset="' + RING_CIRC.toFixed(1) + '"/>' +
+        '</svg>' +
+        '<div class="progress-label" id="pct-' + job.id + '">0%</div>' +
+        '<div class="checkmark-wrap" id="chk-' + job.id + '">' +
+        '<svg width="22" height="22" viewBox="0 0 24 24">' +
+        '<path class="checkmark-path" d="M4 13l5 5L20 7"/>' +
+        '</svg>' +
+        '</div>' +
+        '</div>' +
+        '<a class="btn-download" id="dl-' + job.id + '">Converting…</a>' +
+        '<button class="btn-remove" id="rm-' + job.id + '" title="Remove">✕</button>';
+
+      job.element = card;
+
+      if (isImg) {
+        var imgEl = card.querySelector('#thumb-img-' + job.id);
+        var reader = new FileReader();
+        reader.onload = function (e) { imgEl.src = e.target.result; };
+        reader.readAsDataURL(job.file);
+      }
+
+      card.querySelector('#fmt-' + job.id).addEventListener('change', function (e) {
+        job.fmt = e.target.value;
+        resetJobUI(job);
+        startConversion(job);
+      });
+
+      card.querySelector('#rm-' + job.id).addEventListener('click', function () { removeJob(job); });
+
+      enableDragReorder(card, job);
+      document.getElementById('queue').appendChild(card);
+    }
+
+    // ── Progress & state UI ──────────────────────────────────
+    function setProgress(job, p) {
+      job.progress = p;
+      var pct = Math.round(p * 100);
+      var ring = document.getElementById('ring-' + job.id);
+      var lbl = document.getElementById('pct-' + job.id);
+      if (ring) ring.style.strokeDashoffset = (RING_CIRC * (1 - p)).toFixed(2);
+      if (lbl) lbl.textContent = pct + '%';
+    }
+
+    function markDone(job) {
+      job.status = 'done';
+      setProgress(job, 1);
+
+      var ring = document.getElementById('ring-' + job.id);
+      if (ring) ring.classList.add('complete');
+
+      var lbl = document.getElementById('pct-' + job.id);
+      if (lbl) lbl.style.display = 'none';
+
+      setTimeout(function () {
+        var chk = document.getElementById('chk-' + job.id);
+        if (chk) chk.classList.add('show');
+      }, 200);
+
+      var dl = document.getElementById('dl-' + job.id);
+      if (dl && job.outputBlob) {
+        job.outputUrl = URL.createObjectURL(job.outputBlob);
+        dl.href = job.outputUrl;
+        dl.download = job.file.name.replace(/\.[^/.]+$/, '') + '.' + fileExt(job.fmt);
+        dl.className = 'btn-download ready';
+        dl.textContent = 'Download';
+      }
+
+      var meta = document.getElementById('meta-' + job.id);
+      if (meta && job.outputBlob) {
+        meta.innerHTML =
+          '<span>' + fmtSize(job.file.size) + '</span>' +
+          '<span style="color:#555">→</span>' +
+          '<span class="converted-size">' + fmtSize(job.outputBlob.size) + '</span>';
+      }
+
+      updateBatchArea();
+    }
+
+    function markError(job, msg) {
+      job.status = 'error';
+      if (job.element) job.element.classList.add('error');
+
+      var lbl = document.getElementById('pct-' + job.id);
+      if (lbl) { lbl.textContent = '!'; lbl.style.color = 'var(--error)'; }
+
+      var dl = document.getElementById('dl-' + job.id);
+      if (dl) { dl.className = 'btn-download failed'; dl.textContent = 'Failed'; }
+
+      var meta = document.getElementById('meta-' + job.id);
+      if (meta) {
+        meta.innerHTML =
+          '<span>' + fmtSize(job.file.size) + '</span>' +
+          '<div class="error-msg">' + msg + '</div>';
+      }
+    }
+
+    function resetJobUI(job) {
+      if (job.outputUrl) { URL.revokeObjectURL(job.outputUrl); job.outputUrl = null; }
+      job.outputBlob = null;
+      job.progress = 0;
+      job.status = 'pending';
+
+      var ring = document.getElementById('ring-' + job.id);
+      if (ring) { ring.style.strokeDashoffset = RING_CIRC.toFixed(1); ring.classList.remove('complete'); }
+
+      var lbl = document.getElementById('pct-' + job.id);
+      if (lbl) { lbl.textContent = '0%'; lbl.style.display = ''; lbl.style.color = ''; }
+
+      var chk = document.getElementById('chk-' + job.id);
+      if (chk) chk.classList.remove('show');
+
+      var dl = document.getElementById('dl-' + job.id);
+      if (dl) { dl.className = 'btn-download'; dl.textContent = 'Converting…'; dl.removeAttribute('href'); }
+
+      var meta = document.getElementById('meta-' + job.id);
+      if (meta) meta.innerHTML = '<span>' + fmtSize(job.file.size) + '</span>';
+
+      if (job.element) job.element.classList.remove('error');
+    }
+
+    function removeJob(job) {
+      if (job.outputUrl) URL.revokeObjectURL(job.outputUrl);
+      jobs = jobs.filter(function (j) { return j.id !== job.id; });
+      if (job.element) {
+        job.element.style.transition = 'opacity 0.2s, transform 0.2s';
+        job.element.style.opacity = '0';
+        job.element.style.transform = 'translateX(16px)';
+        setTimeout(function () { if (job.element) job.element.remove(); }, 220);
+      }
+      updateBatchArea();
+    }
+
+    // ── Batch ZIP ────────────────────────────────────────────
+    function updateBatchArea() {
+      var area = document.getElementById('batch-area');
+      var done = jobs.filter(function (j) { return j.status === 'done'; });
+      if (done.length >= 2) {
+        area.innerHTML = '<div class="batch-area"><button class="btn-zip" id="btn-zip">⬇ Download All as ZIP (' + done.length + ' files)</button></div>';
+        document.getElementById('btn-zip').addEventListener('click', downloadZip);
+      } else {
+        area.innerHTML = '';
+      }
+    }
+
+    async function downloadZip() {
+      var zip = new JSZip();
+      var done = jobs.filter(function (j) { return j.status === 'done' && j.outputBlob; });
+      for (var i = 0; i < done.length; i++) {
+        var j = done[i];
+        var name = j.file.name.replace(/\.[^/.]+$/, '') + '.' + fileExt(j.fmt);
+        zip.file(name, j.outputBlob);
+      }
+      var blob = await zip.generateAsync({ type: 'blob' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = 'easyfiles-converted.zip';
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+    }
+
+    // ── Drag-reorder ─────────────────────────────────────────
+    var dragSrcId = null;
+
+    function enableDragReorder(card, job) {
+      card.addEventListener('dragstart', function (e) {
+        dragSrcId = job.id;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      card.addEventListener('dragend', function () {
+        card.classList.remove('dragging');
+        document.querySelectorAll('.file-card').forEach(function (c) {
+          c.classList.remove('drag-over-top', 'drag-over-bottom');
         });
+      });
+      card.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        if (dragSrcId === job.id) return;
+        var rect = card.getBoundingClientRect();
+        var isTop = e.clientY < rect.top + rect.height / 2;
+        card.classList.toggle('drag-over-top', isTop);
+        card.classList.toggle('drag-over-bottom', !isTop);
+      });
+      card.addEventListener('dragleave', function () {
+        card.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      card.addEventListener('drop', function (e) {
+        e.preventDefault();
+        if (dragSrcId === job.id) return;
+        var srcIdx = jobs.findIndex(function (j) { return j.id === dragSrcId; });
+        var dstIdx = jobs.findIndex(function (j) { return j.id === job.id; });
+        if (srcIdx === -1 || dstIdx === -1) return;
+        var after = e.clientY >= card.getBoundingClientRect().top + card.getBoundingClientRect().height / 2;
+        var moved = jobs.splice(srcIdx, 1)[0];
+        var insert = srcIdx < dstIdx ? (after ? dstIdx : dstIdx) : (after ? dstIdx + 1 : dstIdx);
+        jobs.splice(insert, 0, moved);
+        rebuildQueue();
+      });
+    }
 
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, unhighlight, false);
-        });
+    function rebuildQueue() {
+      var qEl = document.getElementById('queue');
+      qEl.innerHTML = '';
+      jobs.forEach(function (j) { if (j.element) qEl.appendChild(j.element); });
+    }
 
-        function highlight(e) {
-            dropZone.classList.add('dragover');
+    // ── File input ───────────────────────────────────────────
+    function handleFiles(files) {
+      var valid = files.filter(function (f) { return getCategory(f); });
+      valid.forEach(function (f) {
+        var job = createJob(f);
+        jobs.push(job);
+        renderJob(job);
+        startConversion(job);
+      });
+      updateBatchArea();
+    }
+
+    // ── Conversion dispatch ──────────────────────────────────
+    async function startConversion(job) {
+      job.status = 'converting';
+      try {
+        var blob;
+        switch (job.cat) {
+          case 'image': blob = await convertImage(job); break;
+          case 'heic': blob = await convertHEIC(job); break;
+          case 'pdf': blob = await convertPDF(job); break;
+          case 'audio': blob = await convertFFmpeg(job); break;
+          case 'video': blob = await convertFFmpeg(job); break;
+          default: throw new Error('Unsupported type');
         }
+        job.outputBlob = blob;
+        markDone(job);
+      } catch (err) {
+        console.error(err);
+        markError(job, err.message || 'Conversion failed');
+      }
+    }
 
-        function unhighlight(e) {
-            dropZone.classList.remove('dragover');
-        }
-
-        dropZone.addEventListener('drop', handleDrop, false);
-        dropZone.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', handleFile);
-
-        function handleDrop(e) {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            handleFiles(Array.from(files));
-        }
-
-        function handleFile(e) {
-            const files = this.files;
-            handleFiles(Array.from(files));
-        }
-
-        function createPreviewItem(file) {
-            const previewItem = document.createElement('div');
-            previewItem.className = 'preview-item';
-
-            const img = document.createElement('img');
-            const details = document.createElement('div');
-            details.className = 'preview-details';
-
-            const fileName = document.createElement('div');
-            fileName.className = 'file-name';
-            fileName.textContent = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-
-
-            const downloadBtn = document.createElement('a');
-            downloadBtn.className = 'download-btn';
-            downloadBtn.textContent = 'Download';
-
-            details.appendChild(fileName);
-            details.appendChild(downloadBtn);
-
-            previewItem.appendChild(img);
-            previewItem.appendChild(details);
-
-            return { previewItem, img, downloadBtn };
-        }
-
-        function clearPreviewContainer() {
-            while (previewContainer.firstChild) {
-                const item = previewContainer.firstChild;
-                if (item.downloadUrl) {
-                    URL.revokeObjectURL(item.downloadUrl);
-                }
-                previewContainer.removeChild(item);
-            }
-        }
-
-        function handleFiles(files) {
-            clearPreviewContainer();
-
-            files.forEach(file => {
-                if (file.type.startsWith('image/')) {
-                    const { previewItem, img, downloadBtn } = createPreviewItem(file);
-                    previewContainer.appendChild(previewItem);
-
-                    if (file.type === 'image/svg+xml') {
-                        const reader = new FileReader();
-                        reader.onload = function (e) {
-                            const image = new Image();
-                            image.onload = function () {
-                                const canvas = document.createElement('canvas');
-                                canvas.width = 512;
-                                canvas.height = 512;
-
-                                const ctx = canvas.getContext('2d');
-                                ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-                                canvas.toBlob((blob) => {
-                                    const downloadUrl = URL.createObjectURL(blob);
-                                    previewItem.downloadUrl = downloadUrl;
-                                    downloadBtn.href = downloadUrl;
-                                    downloadBtn.download = file.name.split('.')[0] + '.png';
-                                }, 'image/png');
-
-                                img.src = e.target.result;
-                                canvas.remove();
-                            };
-                            image.src = e.target.result;
-                        };
-                        reader.readAsDataURL(file);
-                    } else {
-                        const reader = new FileReader();
-                        reader.onload = function (e) {
-                            const image = new Image();
-                            image.onload = function () {
-                                const canvas = document.createElement('canvas');
-                                canvas.width = image.width;
-                                canvas.height = image.height;
-
-                                const ctx = canvas.getContext('2d');
-                                ctx.drawImage(image, 0, 0);
-
-                                canvas.toBlob((blob) => {
-                                    const downloadUrl = URL.createObjectURL(blob);
-                                    previewItem.downloadUrl = downloadUrl;
-                                    downloadBtn.href = downloadUrl;
-                                    downloadBtn.download = file.name.split('.')[0] + '.png';
-                                }, 'image/png');
-
-                                canvas.remove();
-                            };
-                            img.src = e.target.result;
-                            image.src = e.target.result;
-                        };
-                        reader.readAsDataURL(file);
-                    }
-
-                    previewItem.addEventListener('remove', () => {
-                        if (previewItem.downloadUrl) {
-                            URL.revokeObjectURL(previewItem.downloadUrl);
-                        }
-                    });
-                } else if (file.type.startsWith('audio/')) {
-                    convertToMP3(file);
-                }
-            });
-        }
-
-        async function convertToMP3(file) {
+    // ── Image conversion (Canvas) ────────────────────────────
+    function convertImage(job) {
+      return new Promise(function (resolve, reject) {
+        setProgress(job, 0.1);
+        var reader = new FileReader();
+        reader.onerror = function () { reject(new Error('Failed to read file')); };
+        reader.onload = function (e) {
+          var img = new Image();
+          img.onerror = function () { reject(new Error('Failed to decode image')); };
+          img.onload = async function () {
+            setProgress(job, 0.5);
+            var canvas = document.createElement('canvas');
+            canvas.width = img.width || 512;
+            canvas.height = img.height || 512;
+            var ctx = canvas.getContext('2d');
+            if (job.fmt === 'JPEG') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+            ctx.drawImage(img, 0, 0);
+            setProgress(job, 0.85);
             try {
-                const { previewItem, img, downloadBtn } = createPreviewItem(file);
-                img.src = 'audio-placeholder.webp';
-                previewContainer.appendChild(previewItem);
+              if (job.fmt === 'ICO') {
+                resolve(await canvasToICO(canvas));
+              } else {
+                var mimeMap = { PNG: 'image/png', JPEG: 'image/jpeg', WEBP: 'image/webp' };
+                var mime = mimeMap[job.fmt] || 'image/png';
+                canvas.toBlob(function (blob) { setProgress(job, 1); resolve(blob); }, mime, 0.92);
+              }
+            } catch (ex) { reject(ex); }
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(job.file);
+      });
+    }
 
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const reader = new FileReader();
+    async function canvasToICO(canvas) {
+      var tmp = document.createElement('canvas');
+      tmp.width = tmp.height = 32;
+      tmp.getContext('2d').drawImage(canvas, 0, 0, 32, 32);
+      var pngBuf = await new Promise(function (r) { tmp.toBlob(function (b) { b.arrayBuffer().then(r); }, 'image/png'); });
+      var png = new Uint8Array(pngBuf);
+      var ico = new Uint8Array(6 + 16 + png.length);
+      var view = new DataView(ico.buffer);
+      view.setUint16(0, 0, true); view.setUint16(2, 1, true); view.setUint16(4, 1, true);
+      ico[6] = 32; ico[7] = 32; ico[8] = 0; ico[9] = 0;
+      view.setUint16(10, 1, true); view.setUint16(12, 32, true);
+      view.setUint32(14, png.length, true); view.setUint32(18, 22, true);
+      ico.set(png, 22);
+      return new Blob([ico], { type: 'image/x-icon' });
+    }
 
-                reader.onload = async (e) => {
-                    const arrayBuffer = e.target.result;
-                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                    const mp3Data = await convertBufferToMP3(audioBuffer);
+    // ── HEIC conversion ──────────────────────────────────────
+    async function convertHEIC(job) {
+      setProgress(job, 0.2);
+      var mime = job.fmt === 'JPEG' ? 'image/jpeg' : 'image/png';
+      var result = await heic2any({ blob: job.file, toType: mime, quality: 0.92 });
+      var heicBlob = Array.isArray(result) ? result[0] : result;
+      setProgress(job, 0.7);
+      if (job.fmt === 'WEBP' || job.fmt === 'ICO') {
+        var job2 = Object.assign({}, job, {
+          cat: 'image',
+          file: new File([heicBlob], job.file.name + '.png', { type: 'image/png' })
+        });
+        return convertImage(job2);
+      }
+      setProgress(job, 1);
+      return heicBlob;
+    }
 
-                    const blob = new Blob([mp3Data], { type: 'audio/mp3' });
-                    const downloadUrl = URL.createObjectURL(blob);
-                    previewItem.downloadUrl = downloadUrl;
-                    downloadBtn.href = downloadUrl;
-                    downloadBtn.download = file.name.replace(/\.[^/.]+$/, '') + '.mp3';
-                };
+    // ── PDF conversion ───────────────────────────────────────
+    async function convertPDF(job) {
+      if (typeof pdfjsLib === 'undefined') throw new Error('PDF.js not loaded');
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      setProgress(job, 0.1);
+      var arrayBuffer = await job.file.arrayBuffer();
+      var pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      setProgress(job, 0.3);
+      var page = await pdfDoc.getPage(1);
+      var viewport = page.getViewport({ scale: 2.0 });
+      var canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      var ctx = canvas.getContext('2d');
+      setProgress(job, 0.5);
+      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+      setProgress(job, 0.85);
+      if (job.fmt === 'ICO') return canvasToICO(canvas);
+      var mimeMap2 = { PNG: 'image/png', JPEG: 'image/jpeg', WEBP: 'image/webp' };
+      var mime2 = mimeMap2[job.fmt] || 'image/png';
+      return new Promise(function (resolve) { canvas.toBlob(resolve, mime2, 0.92); });
+    }
 
-                reader.readAsArrayBuffer(file);
-            } catch (error) {
-                console.error('Error converting to MP3:', error);
-            }
+    // ── FFmpeg conversion (v0.11 API) ─────────────────────────
+    async function convertFFmpeg(job) {
+      if (!ffmpegReady || !ffmpegInst) throw new Error('FFmpeg not loaded');
+
+      return enqueueFFmpeg(async function () {
+        var fetchFile = window.FFmpeg.fetchFile;
+        var ff = ffmpegInst;
+
+        ff.setProgress(function (p) {
+          if (p.ratio >= 0 && p.ratio <= 1) setProgress(job, p.ratio);
+        });
+
+        var inName = 'input.' + job.file.name.split('.').pop();
+        var outName = 'output.' + fileExt(job.fmt);
+
+        ff.FS('writeFile', inName, await fetchFile(job.file));
+
+        var args;
+        if (job.fmt === 'MP3') { args = ['-i', inName, '-vn', '-ar', '44100', '-ac', '2', '-b:a', '192k', outName]; }
+        else if (job.fmt === 'WAV') { args = ['-i', inName, '-vn', '-ar', '44100', '-ac', '2', outName]; }
+        else if (job.fmt === 'OGG') { args = ['-i', inName, '-vn', '-ar', '44100', '-ac', '2', '-c:a', 'libvorbis', '-q:a', '6', outName]; }
+        else if (job.fmt === 'GIF') { args = ['-i', inName, '-vf', 'fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse', outName]; }
+        else if (job.fmt === 'MP4') { args = ['-i', inName, '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-c:a', 'aac', '-b:a', '128k', outName]; }
+        else { args = ['-i', inName, '-vn', '-ar', '44100', '-ac', '2', '-b:a', '192k', outName]; }
+
+        try {
+          await ff.run.apply(ff, args);
+        } catch (e) {
+          // v0.11 throws ExitStatus{status:0} on normal successful exit — ignore it
+          if (!e || e.name !== 'ExitStatus' || e.status !== 0) throw e;
         }
+        var data = ff.FS('readFile', outName);
 
-        async function convertBufferToMP3(audioBuffer) {
-            try {
-                const mp3encoder = new lamejs.Mp3Encoder(
-                    audioBuffer.numberOfChannels,
-                    audioBuffer.sampleRate,
-                    128
-                );
+        try { ff.FS('unlink', inName); } catch (_) { }
+        try { ff.FS('unlink', outName); } catch (_) { }
 
-                const channels = [];
-                for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
-                    channels.push(audioBuffer.getChannelData(i));
-                }
+        var mimeMap3 = { mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', mp4: 'video/mp4', gif: 'image/gif' };
+        return new Blob([data.buffer], { type: mimeMap3[fileExt(job.fmt)] || 'application/octet-stream' });
+      });
+    }
 
-                const samples = new Int16Array(audioBuffer.length);
-                for (let i = 0; i < audioBuffer.length; i++) {
-                    const sample = channels[0][i] * 32768;
-                    samples[i] = Math.max(-32768, Math.min(32768, sample));
-                }
+    // ── Drop zone events ─────────────────────────────────────
+    var dropZone = document.getElementById('drop-zone');
+    var fileInput = document.getElementById('file-input');
 
-                const mp3Data = [];
-                const sampleBlockSize = 1152;
-                for (let i = 0; i < samples.length; i += sampleBlockSize) {
-                    const sampleChunk = samples.subarray(i, i + sampleBlockSize);
-                    const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
-                    if (mp3buf.length > 0) {
-                        mp3Data.push(mp3buf);
-                    }
-                }
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function (ev) {
+      dropZone.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); });
+    });
+    dropZone.addEventListener('dragenter', function () { dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragover', function () { dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', function () { dropZone.classList.remove('dragover'); });
+    dropZone.addEventListener('drop', function (e) {
+      dropZone.classList.remove('dragover');
+      handleFiles(Array.from(e.dataTransfer.files));
+    });
+    dropZone.addEventListener('click', function () { fileInput.click(); });
+    fileInput.addEventListener('change', function (e) {
+      handleFiles(Array.from(e.target.files));
+      fileInput.value = '';
+    });
 
-                const finalMp3Buf = mp3encoder.flush();
-                if (finalMp3Buf.length > 0) {
-                    mp3Data.push(finalMp3Buf);
-                }
-
-                const blob = new Blob(mp3Data, { type: 'audio/mp3' });
-                return await blob.arrayBuffer();
-            } catch (error) {
-                console.error('MP3 conversion error:', error);
-                throw error;
-            }
-        }
-    </script>
+    // ── Init ─────────────────────────────────────────────────
+    initFFmpeg();
+  </script>
 </body>
 
 </html>
